@@ -149,7 +149,7 @@ namespace Gtk
         {
         }
 
-        protected virtual void RenderFrame()
+        protected virtual void RenderFrame(bool resized = false)
         {
         }
 

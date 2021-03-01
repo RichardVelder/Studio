@@ -68,6 +68,14 @@ namespace FamiStudio
             doubleClickTime = Gtk.Settings.GetForScreen(Gdk.Screen.Default).DoubleClickTime;
         }
 
+#if FAMISTUDIO_MACOS
+        protected override bool OnExposeEvent(Gdk.EventExpose evnt)
+        {
+            IntPtr windowHandle = MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
+            MacUtils.Initialize(windowHandle);
+            return base.OnExposeEvent(evnt);
+        }
+#endif
 
         void Handle_FocusOutEvent(object o, FocusOutEventArgs args)
         {
@@ -77,13 +85,13 @@ namespace FamiStudio
 
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
-            Debug.WriteLine($"Resize {evnt.Width} {evnt.Height}");
+            //Debug.WriteLine($"Resize {evnt.Width} {evnt.Height}");
 
             var result = base.OnConfigureEvent(evnt);
 
             controls.Resize(evnt.Width, evnt.Height);
             Invalidate();
-            RenderFrame();
+            RenderFrame(true);
             
             return result;
         }
@@ -316,10 +324,10 @@ namespace FamiStudio
                 1.0f);
 
             // Clear+swap twice. Seems to clear up the garbage that may be in the back buffer.
-            //GL.Clear(ClearBufferMask.ColorBufferBit);
-            //GraphicsContext.CurrentContext.SwapBuffers();
-            //GL.Clear(ClearBufferMask.ColorBufferBit);
-            //GraphicsContext.CurrentContext.SwapBuffers();
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GraphicsContext.CurrentContext.SwapBuffers();
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GraphicsContext.CurrentContext.SwapBuffers();
 
             controls.InitializeGL(this);
             glInit = true;
@@ -338,11 +346,14 @@ namespace FamiStudio
             RenderFrame();
         }
 
-        protected override void RenderFrame()
+        protected override void RenderFrame(bool resized = false)
         {
             if (glInit && controls.Redraw(Allocation.Width, Allocation.Height))
             {
-                GraphicsContext.CurrentContext.SwapBuffers();
+#if FAMISTUDIO_MACOS
+                if (!resized)
+#endif
+                    GraphicsContext.CurrentContext.SwapBuffers();
             }
         }
 
