@@ -67,12 +67,18 @@ namespace FamiStudio
 
             doubleClickTime = Gtk.Settings.GetForScreen(Gdk.Screen.Default).DoubleClickTime;
         }
-
+        
 #if FAMISTUDIO_MACOS
         protected override bool OnExposeEvent(Gdk.EventExpose evnt)
         {
             IntPtr windowHandle = MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
             MacUtils.Initialize(windowHandle);
+
+            WidthRequest  = CoordToGtk(512); // MATTT 512
+            HeightRequest = CoordToGtk(512);
+            Resize(512, 512);
+
+            RefreshSequencerLayout();
             return base.OnExposeEvent(evnt);
         }
 #endif
@@ -89,7 +95,7 @@ namespace FamiStudio
 
             var result = base.OnConfigureEvent(evnt);
 
-            controls.Resize(evnt.Width, evnt.Height);
+            controls.Resize(GtkToCoord(evnt.Width), GtkToCoord(evnt.Height));
             Invalidate();
             RenderFrame(true);
             
@@ -112,10 +118,13 @@ namespace FamiStudio
 
         void GlWindow_ButtonPressEvent(object o, ButtonPressEventArgs args)
         {
-            var ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out int x, out int y);
+            var scaledX = GtkToCoord(args.Event.X);
+            var scaledY = GtkToCoord(args.Event.Y);
 
-            lastMousePos.X = (int)args.Event.X;
-            lastMousePos.Y = (int)args.Event.Y;
+            var ctrl = controls.GetControlAtCoord(scaledX, scaledY, out int x, out int y);
+
+            lastMousePos.X = scaledX;
+            lastMousePos.Y = scaledY;
 
             if (args.Event.Type == Gdk.EventType.ButtonPress)
             {
@@ -131,8 +140,8 @@ namespace FamiStudio
                 //  t=4 DBL CLICK
                 if (args.Event.Button == lastMouseButton &&
                     (args.Event.Time - lastClickTime) < doubleClickTime &&
-                    Math.Abs(lastClickPos.X - args.Event.X) < 4 &&
-                    Math.Abs(lastClickPos.Y - args.Event.Y) < 4)
+                    Math.Abs(lastClickPos.X - scaledX) < 4 &&
+                    Math.Abs(lastClickPos.Y - scaledY) < 4)
                 {
                     lastMouseButton = 999;
                     lastClickTime   = 0;
@@ -144,7 +153,7 @@ namespace FamiStudio
                 {
                     lastMouseButton = args.Event.Button;
                     lastClickTime   = args.Event.Time;
-                    lastClickPos    = new Point((int)args.Event.X, (int)args.Event.Y);
+                    lastClickPos    = new Point(scaledX, scaledY);
 
                     var e = GtkUtils.ToWinFormArgs(args.Event, x, y);
                     lastButtonPress = e.Button;
@@ -155,6 +164,9 @@ namespace FamiStudio
 
         void GlWindow_ButtonReleaseEvent(object o, ButtonReleaseEventArgs args)
         {
+            var scaledX = GtkToCoord(args.Event.X);
+            var scaledY = GtkToCoord(args.Event.Y);
+
             int x;
             int y;
             GLControl ctrl = null;
@@ -162,16 +174,16 @@ namespace FamiStudio
             if (captureControl != null)
             {
                 ctrl = captureControl;
-                x = (int)args.Event.X - ctrl.Left;
-                y = (int)args.Event.Y - ctrl.Top;
+                x = scaledX - ctrl.Left;
+                y = scaledY - ctrl.Top;
             }
             else
             {
-                ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out x, out y);
+                ctrl = controls.GetControlAtCoord(scaledX, scaledY, out x, out y);
             }
 
-            lastMousePos.X = (int)args.Event.X;
-            lastMousePos.Y = (int)args.Event.Y;
+            lastMousePos.X = scaledX;
+            lastMousePos.Y = scaledY;
 
             var e = GtkUtils.ToWinFormArgs(args.Event, x, y);
             if (e.Button == captureButton)
@@ -183,7 +195,10 @@ namespace FamiStudio
 
         void GlWindow_ScrollEvent(object o, ScrollEventArgs args)
         {
-            var ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out int x, out int y);
+            var scaledX = GtkToCoord(args.Event.X);
+            var scaledY = GtkToCoord(args.Event.Y);
+
+            var ctrl = controls.GetControlAtCoord(scaledX, scaledY, out int x, out int y);
 
             if (args.Event.Direction == Gdk.ScrollDirection.Up ||
                 args.Event.Direction == Gdk.ScrollDirection.Down)
@@ -199,7 +214,8 @@ namespace FamiStudio
 
         void GlWindow_MotionNotifyEvent(object o, MotionNotifyEventArgs args)
         {
-            //Debug.WriteLine($"MOVE! {args.Event.X} {args.Event.Y}");
+            var scaledX = GtkToCoord(args.Event.X);
+            var scaledY = GtkToCoord(args.Event.Y);
 
             int x;
             int y;
@@ -208,16 +224,16 @@ namespace FamiStudio
             if (captureControl != null)
             {
                 ctrl = captureControl;
-                x = (int)args.Event.X - ctrl.Left;
-                y = (int)args.Event.Y - ctrl.Top;
+                x = scaledX - ctrl.Left;
+                y = scaledY - ctrl.Top;
             }
             else
             {
-                ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out x, out y);
+                ctrl = controls.GetControlAtCoord(scaledX, scaledY, out x, out y);
             }
 
-            lastMousePos.X = (int)args.Event.X;
-            lastMousePos.Y = (int)args.Event.Y;
+            lastMousePos.X = scaledX;
+            lastMousePos.Y = scaledY;
 
             if (ctrl != null)
             {
@@ -279,7 +295,7 @@ namespace FamiStudio
 
         public void RefreshSequencerLayout()
         { 
-            controls.Resize(Allocation.Width, Allocation.Height);
+            controls.Resize(GtkToCoord(Allocation.Width), GtkToCoord(Allocation.Height));
             controls.Invalidate();
         }
 
@@ -288,27 +304,34 @@ namespace FamiStudio
             controls.Invalidate();
         }
 
+        private void GetScaledWindowOrigin(out int ox, out int oy)
+        {
+            GdkWindow.GetOrigin(out ox, out oy);
+            ox = GtkToCoord(ox);
+            oy = GtkToCoord(oy);
+        }
+
         public Point PointToClient(Point p)
         {
-            GdkWindow.GetOrigin(out var ox, out var oy);
+            GetScaledWindowOrigin(out var ox, out var oy);
             return new Point(p.X - ox, p.Y - oy);
         }
 
         public Point PointToScreen(Point p)
         {
-            GdkWindow.GetOrigin(out var ox, out var oy);
+            GetScaledWindowOrigin(out var ox, out var oy);
             return new Point(ox + p.X, oy + p.Y);
         }
 
         public Point PointToClient(GLControl ctrl, Point p)
         {
-            GdkWindow.GetOrigin(out var ox, out var oy);
+            GetScaledWindowOrigin(out var ox, out var oy);
             return new Point(p.X - ctrl.Left - ox, p.Y - ctrl.Top - oy);
         }
 
         public Point PointToScreen(GLControl ctrl, Point p)
         {
-            GdkWindow.GetOrigin(out var ox, out var oy);
+            GetScaledWindowOrigin(out var ox, out var oy);
             return new Point(ox + ctrl.Left + p.X, oy + ctrl.Top + p.Y);
         }
 
@@ -346,12 +369,32 @@ namespace FamiStudio
             RenderFrame();
         }
 
+        int GtkToCoord(int pos)
+        {
+            return (int)(pos * GLTheme.MainWindowScaling);
+        }
+
+        int GtkToCoord(double pos)
+        {
+            return (int)(pos * GLTheme.MainWindowScaling);
+        }
+
+        int CoordToGtk(int pos)
+        {
+            return (int)(pos / GLTheme.MainWindowScaling);
+        }
+
+        double CoordToGtk(double pos)
+        {
+            return pos / GLTheme.MainWindowScaling;
+        }
+
         protected override void RenderFrame(bool resized = false)
         {
-            if (glInit && controls.Redraw(Allocation.Width, Allocation.Height))
+            if (glInit && controls.Redraw(GtkToCoord(Allocation.Width), GtkToCoord(Allocation.Height)))
             {
 #if FAMISTUDIO_MACOS
-                if (!resized)
+                //if (!resized)
 #endif
                     GraphicsContext.CurrentContext.SwapBuffers();
             }
@@ -411,8 +454,8 @@ namespace FamiStudio
         {
             get
             {
-                GdkWindow.GetOrigin(out var ox, out var oy);
-                return new Rectangle(ox, oy, ox + Allocation.Width, oy + Allocation.Height);
+                GetScaledWindowOrigin(out var ox, out var oy);
+                return new Rectangle(ox, oy, ox + GtkToCoord(Allocation.Width), oy + GtkToCoord(Allocation.Height));
             }
         }
 
