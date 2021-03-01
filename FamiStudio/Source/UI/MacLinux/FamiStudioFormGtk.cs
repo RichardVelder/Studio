@@ -10,7 +10,7 @@ using System.Resources;
 
 namespace FamiStudio
 {
-    public class FamiStudioForm : Window
+    public class FamiStudioForm : GLWindow
     {
         private static FamiStudioForm instance;
         private FamiStudio famistudio;
@@ -26,7 +26,6 @@ namespace FamiStudio
         public static FamiStudioForm Instance => instance;
 
         bool glInit = false;
-        GLWidget glWidget;
 
         private int  doubleClickTime = 250;
         private uint lastMouseButton = 999;
@@ -39,7 +38,7 @@ namespace FamiStudio
         private bool[] keys = new bool[256];
         private System.Windows.Forms.Keys modifiers = System.Windows.Forms.Keys.None;
 
-        public FamiStudioForm(FamiStudio famistudio) : base(WindowType.Toplevel)
+        public FamiStudioForm(FamiStudio famistudio) : base(new GraphicsMode(new ColorFormat(8, 8, 8, 0), 0, 0), 1, 0, GraphicsContextFlags.Default)
         {
             this.famistudio = famistudio;
             this.Name = "FamiStudioForm";
@@ -48,11 +47,10 @@ namespace FamiStudio
 
             controls = new FamiStudioControls(this);
 
-            glWidget = new GLWidget(new GraphicsMode(new ColorFormat(8, 8, 8, 0), 0, 0), 1, 0, GraphicsContextFlags.Default);
-            glWidget.WidthRequest = 1280;
-            glWidget.HeightRequest = 720;
-            glWidget.Initialized += GLWidgetInitialize;
-            glWidget.Events |= 
+            WidthRequest  = 1280;
+            HeightRequest = 720;
+
+            Events |= 
                 Gdk.EventMask.ButtonPressMask   |
                 Gdk.EventMask.ButtonReleaseMask |
                 Gdk.EventMask.KeyPressMask      |
@@ -60,19 +58,14 @@ namespace FamiStudio
                 Gdk.EventMask.ScrollMask        |
                 Gdk.EventMask.PointerMotionMask | 
                 Gdk.EventMask.PointerMotionHintMask;
-            glWidget.Show();
 
-            glWidget.ButtonPressEvent   += GlWidget_ButtonPressEvent;
-            glWidget.ButtonReleaseEvent += GlWidget_ButtonReleaseEvent;
-            glWidget.ScrollEvent        += GlWidget_ScrollEvent;
-            glWidget.MotionNotifyEvent  += GlWidget_MotionNotifyEvent;
-            glWidget.Resized            += GlWidget_Resized;
-
-            FocusOutEvent += Handle_FocusOutEvent;
+            ButtonPressEvent   += GlWindow_ButtonPressEvent;
+            ButtonReleaseEvent += GlWindow_ButtonReleaseEvent;
+            ScrollEvent        += GlWindow_ScrollEvent;
+            MotionNotifyEvent  += GlWindow_MotionNotifyEvent;
+            FocusOutEvent      += Handle_FocusOutEvent;
 
             doubleClickTime = Gtk.Settings.GetForScreen(Gdk.Screen.Default).DoubleClickTime;
-
-            Add(glWidget);
         }
 
         void Handle_FocusOutEvent(object o, FocusOutEventArgs args)
@@ -81,11 +74,15 @@ namespace FamiStudio
             modifiers = System.Windows.Forms.Keys.None;
         }
 
-        void GlWidget_Resized(object sender, EventArgs e)
+        protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
-            controls.Resize(glWidget.Allocation.Width, glWidget.Allocation.Height);
+            var result = base.OnConfigureEvent(evnt);
+
+            controls.Resize(evnt.Width, evnt.Height);
             Invalidate();
             RenderFrame();
+
+            return result;
         }
 
         protected System.Windows.Forms.MouseEventArgs ToWinFormArgs(Gdk.EventScroll e, int x, int y, bool horizontal)
@@ -102,7 +99,7 @@ namespace FamiStudio
             }
         }
 
-        void GlWidget_ButtonPressEvent(object o, ButtonPressEventArgs args)
+        void GlWindow_ButtonPressEvent(object o, ButtonPressEventArgs args)
         {
             var ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out int x, out int y);
 
@@ -145,7 +142,7 @@ namespace FamiStudio
             }
         }
 
-        void GlWidget_ButtonReleaseEvent(object o, ButtonReleaseEventArgs args)
+        void GlWindow_ButtonReleaseEvent(object o, ButtonReleaseEventArgs args)
         {
             int x;
             int y;
@@ -173,7 +170,7 @@ namespace FamiStudio
                 ctrl.MouseUp(e);
         }
 
-        void GlWidget_ScrollEvent(object o, ScrollEventArgs args)
+        void GlWindow_ScrollEvent(object o, ScrollEventArgs args)
         {
             var ctrl = controls.GetControlAtCoord((int)args.Event.X, (int)args.Event.Y, out int x, out int y);
 
@@ -189,7 +186,7 @@ namespace FamiStudio
             }
         }
 
-        void GlWidget_MotionNotifyEvent(object o, MotionNotifyEventArgs args)
+        void GlWindow_MotionNotifyEvent(object o, MotionNotifyEventArgs args)
         {
             //Debug.WriteLine($"MOVE! {args.Event.X} {args.Event.Y}");
 
@@ -271,7 +268,7 @@ namespace FamiStudio
 
         public void RefreshSequencerLayout()
         { 
-            controls.Resize(glWidget.Allocation.Width, glWidget.Allocation.Height);
+            controls.Resize(Allocation.Width, Allocation.Height);
             controls.Invalidate();
         }
 
@@ -282,33 +279,33 @@ namespace FamiStudio
 
         public Point PointToClient(Point p)
         {
-            glWidget.GdkWindow.GetOrigin(out var ox, out var oy);
+            GdkWindow.GetOrigin(out var ox, out var oy);
             return new Point(p.X - ox, p.Y - oy);
         }
 
         public Point PointToScreen(Point p)
         {
-            glWidget.GdkWindow.GetOrigin(out var ox, out var oy);
+            GdkWindow.GetOrigin(out var ox, out var oy);
             return new Point(ox + p.X, oy + p.Y);
         }
 
         public Point PointToClient(GLControl ctrl, Point p)
         {
-            glWidget.GdkWindow.GetOrigin(out var ox, out var oy);
+            GdkWindow.GetOrigin(out var ox, out var oy);
             return new Point(p.X - ctrl.Left - ox, p.Y - ctrl.Top - oy);
         }
 
         public Point PointToScreen(GLControl ctrl, Point p)
         {
-            glWidget.GdkWindow.GetOrigin(out var ox, out var oy);
+            GdkWindow.GetOrigin(out var ox, out var oy);
             return new Point(ox + ctrl.Left + p.X, oy + ctrl.Top + p.Y);
         }
 
-        protected virtual void GLWidgetInitialize(object sender, EventArgs e)
+        protected override void GLInitialized()
         {
             GL.Disable(EnableCap.DepthTest);
 
-            GL.Viewport(0, 0, glWidget.Allocation.Width, glWidget.Allocation.Height);
+            GL.Viewport(0, 0, Allocation.Width, Allocation.Height);
             GL.ClearColor(
                 ThemeBase.DarkGreyFillColor2.R / 255.0f,
                 ThemeBase.DarkGreyFillColor2.G / 255.0f,
@@ -338,9 +335,9 @@ namespace FamiStudio
             RenderFrame();
         }
 
-        protected void RenderFrame()
+        protected override void RenderFrame()
         {
-            if (glInit && controls.Redraw(glWidget.Allocation.Width, glWidget.Allocation.Height))
+            if (glInit && controls.Redraw(Allocation.Width, Allocation.Height))
             {
                 GraphicsContext.CurrentContext.SwapBuffers();
             }
@@ -354,7 +351,7 @@ namespace FamiStudio
 
                 captureButton  = lastButtonPress;
                 captureControl = ctrl;
-                Gdk.Pointer.Grab(glWidget.GdkWindow, true, Gdk.EventMask.PointerMotionMask | Gdk.EventMask.ButtonReleaseMask, null, null, 0);
+                Gdk.Pointer.Grab(GdkWindow, true, Gdk.EventMask.PointerMotionMask | Gdk.EventMask.ButtonReleaseMask, null, null, 0);
             }
         }
 
@@ -383,7 +380,7 @@ namespace FamiStudio
                 return;
 
             if (ctrl != null)
-                glWidget.GdkWindow.Cursor = ctrl.Cursor.Current;
+                GdkWindow.Cursor = ctrl.Cursor.Current;
         }
 
         public System.Windows.Forms.Keys GetModifierKeys()
@@ -400,7 +397,7 @@ namespace FamiStudio
         {
             get
             {
-                glWidget.GdkWindow.GetOrigin(out var ox, out var oy);
+                GdkWindow.GetOrigin(out var ox, out var oy);
                 return new Rectangle(ox, oy, ox + Allocation.Width, oy + Allocation.Height);
             }
         }
