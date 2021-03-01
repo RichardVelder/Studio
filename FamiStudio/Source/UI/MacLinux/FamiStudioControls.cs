@@ -90,10 +90,11 @@ namespace FamiStudio
 
             if (anyNeedsRedraw)
             {
-                //Debug.WriteLine("REDRAW!");
+                Debug.WriteLine($"REDRAW! {width} {height}");
 
-#if FAMISTUDIO_LINUX
+#if TRUE //FAMISTUDIO_LINUX
                 GL.Viewport(0, 0, width, height);
+                GL.ClearColor(1.0f, 0.0f, 1.0f, 1.0f);
                 GL.Clear(ClearBufferMask.ColorBufferBit);
 
                 // Tentative fix for a bug when NSF dialog is open that I can no longer repro.

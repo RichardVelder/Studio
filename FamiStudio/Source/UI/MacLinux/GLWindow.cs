@@ -85,7 +85,7 @@ namespace Gtk
         public GLWindow(GraphicsMode graphicsMode, int glVersionMajor, int glVersionMinor, GraphicsContextFlags graphicsContextFlags) :
             base(WindowType.Toplevel)
         {
-            this.DoubleBuffered = false;
+            DoubleBuffered = false;
 
             SingleBuffer = graphicsMode.Buffers == 1;
             ColorBPP = graphicsMode.ColorFormat.BitsPerPixel;
@@ -117,7 +117,7 @@ namespace Gtk
             if (disposing)
             {
                 graphicsContext.MakeCurrent(windowInfo);
-                OnShuttingDown();
+                ShuttingDown();
                 if (GraphicsContext.ShareContexts && (Interlocked.Decrement(ref graphicsContextCount) == 0))
                 {
                     OnGraphicsContextShuttingDown();
@@ -145,7 +145,6 @@ namespace Gtk
                 GraphicsContextShuttingDown(null, EventArgs.Empty);
         }
 
-        // Called when this GLWidget has a valid GraphicsContext
         protected virtual void GLInitialized()
         {
         }
@@ -154,13 +153,8 @@ namespace Gtk
         {
         }
 
-        // Called when this GLWidget is being Disposed
-        public event EventHandler ShuttingDown;
-
-        protected virtual void OnShuttingDown()
+        protected virtual void ShuttingDown()
         {
-            if (ShuttingDown != null)
-                ShuttingDown(this, EventArgs.Empty);
         }
 
         // Called when a widget is realized. (window handles and such are valid)
@@ -170,7 +164,7 @@ namespace Gtk
         bool initialized;
 
         // Called when the widget needs to be (fully or partially) redrawn.
-        protected override bool OnExposeEvent(Gdk.EventExpose eventExpose)
+        protected override bool OnExposeEvent(Gdk.EventExpose evnt)
         {
             if (!initialized)
             {
@@ -185,8 +179,7 @@ namespace Gtk
                         DepthBPP = 16;
                 }
 
-                ColorFormat colorBufferColorFormat = new ColorFormat(ColorBPP);
-
+                ColorFormat colorBufferColorFormat  = new ColorFormat(ColorBPP);
                 ColorFormat accumulationColorFormat = new ColorFormat(AccumulatorBPP);
 
                 int buffers = 2;
@@ -196,45 +189,31 @@ namespace Gtk
                 GraphicsMode graphicsMode = new GraphicsMode(colorBufferColorFormat, DepthBPP, StencilBPP, Samples, accumulationColorFormat, buffers, Stereo);
 
                 // IWindowInfo
-                if (Configuration.RunningOnWindows)
-                {
-                    IntPtr windowHandle = gdk_win32_drawable_get_handle(GdkWindow.Handle);
-                    windowInfo = Utilities.CreateWindowsWindowInfo(windowHandle);
-                }
-                else if (Configuration.RunningOnMacOS)
-                {
-                    IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
-                    const bool ownHandle = true;
-                    const bool isControl = true;
-                    windowInfo = Utilities.CreateMacOSCarbonWindowInfo(windowHandle, ownHandle, isControl);
-                }
-                else if (Configuration.RunningOnX11)
-                {
-                    IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
-                    int screen = Screen.Number;
-                    IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
-                    IntPtr rootWindow = gdk_x11_drawable_get_xid(RootWindow.Handle);
+#if FAMISTUDIO_MACOS
+                IntPtr windowHandle = FamiStudio.MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
+                windowInfo = Utilities.CreateMacOSWindowInfo(windowHandle);
+#elif FAMISTUDIO_LINUX
+                IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
+                int screen = Screen.Number;
+                IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
+                IntPtr rootWindow = gdk_x11_drawable_get_xid(RootWindow.Handle);
 
-                    IntPtr visualInfo;
-                    if (graphicsMode.Index.HasValue)
-                    {
-                        XVisualInfo info = new XVisualInfo();
-                        info.VisualID = graphicsMode.Index.Value;
-                        int dummy;
-                        visualInfo = XGetVisualInfo(display, XVisualInfoMask.ID, ref info, out dummy);
-                    }
-                    else
-                    {
-                        visualInfo = GetVisualInfo(display);
-                    }
-
-                    windowInfo = Utilities.CreateX11WindowInfo(display, screen, windowHandle, rootWindow, visualInfo);
-                    XFree(visualInfo);
+                IntPtr visualInfo;
+                if (graphicsMode.Index.HasValue)
+                {
+                    XVisualInfo info = new XVisualInfo();
+                    info.VisualID = graphicsMode.Index.Value;
+                    int dummy;
+                    visualInfo = XGetVisualInfo(display, XVisualInfoMask.ID, ref info, out dummy);
                 }
                 else
                 {
-                    throw new PlatformNotSupportedException();
+                    visualInfo = GetVisualInfo(display);
                 }
+
+                windowInfo = Utilities.CreateX11WindowInfo(display, screen, windowHandle, rootWindow, visualInfo);
+                XFree(visualInfo);
+#endif
 
                 // GraphicsContext
                 graphicsContext = new GraphicsContext(graphicsMode, windowInfo, GlVersionMajor, GlVersionMinor, graphicsContextFlags);
@@ -264,15 +243,12 @@ namespace Gtk
                 graphicsContext.MakeCurrent(windowInfo);
             }
 
-            bool result = base.OnExposeEvent(eventExpose);
+            bool result = base.OnExposeEvent(evnt);
             RenderFrame();
-            eventExpose.Window.Display.Sync(); // Add Sync call to fix resize rendering problem (Jay L. T. Cornwall) - How does this affect VSync?
+            evnt.Window.Display.Sync(); // Add Sync call to fix resize rendering problem (Jay L. T. Cornwall) - How does this affect VSync?
             graphicsContext.SwapBuffers();
             return result;
         }
-
-        // Called when this GLWidget needs to render a frame
-        public event EventHandler Resized;
 
         // Called on Resize
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
@@ -280,11 +256,10 @@ namespace Gtk
             bool result = base.OnConfigureEvent(evnt);
             if (graphicsContext != null)
                 graphicsContext.Update(windowInfo);
-            if (Resized != null)
-                Resized(this, EventArgs.Empty);
             return result;
         }
 
+#if FAMISTUDIO_LINUX
         [SuppressUnmanagedCodeSecurity, DllImport("libgdk-win32-2.0-0.dll")]
         public static extern IntPtr gdk_win32_drawable_get_handle(IntPtr d);
 
@@ -457,5 +432,6 @@ namespace Gtk
 
         [SuppressUnmanagedCodeSecurity, DllImport(linux_libgl_name)]
         static extern IntPtr glXChooseVisual(IntPtr display, int screen, int[] attr);
+#endif
     }
 }

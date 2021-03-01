@@ -56,7 +56,7 @@ namespace FamiStudio
                 Gdk.EventMask.KeyPressMask      |
                 Gdk.EventMask.KeyReleaseMask    |
                 Gdk.EventMask.ScrollMask        |
-                Gdk.EventMask.PointerMotionMask | 
+                Gdk.EventMask.PointerMotionMask |
                 Gdk.EventMask.PointerMotionHintMask;
 
             ButtonPressEvent   += GlWindow_ButtonPressEvent;
@@ -68,6 +68,7 @@ namespace FamiStudio
             doubleClickTime = Gtk.Settings.GetForScreen(Gdk.Screen.Default).DoubleClickTime;
         }
 
+
         void Handle_FocusOutEvent(object o, FocusOutEventArgs args)
         {
             Array.Clear(keys, 0, keys.Length);
@@ -76,12 +77,14 @@ namespace FamiStudio
 
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
+            Debug.WriteLine($"Resize {evnt.Width} {evnt.Height}");
+
             var result = base.OnConfigureEvent(evnt);
 
             controls.Resize(evnt.Width, evnt.Height);
             Invalidate();
             RenderFrame();
-
+            
             return result;
         }
 
@@ -313,10 +316,10 @@ namespace FamiStudio
                 1.0f);
 
             // Clear+swap twice. Seems to clear up the garbage that may be in the back buffer.
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            GraphicsContext.CurrentContext.SwapBuffers();
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            GraphicsContext.CurrentContext.SwapBuffers();
+            //GL.Clear(ClearBufferMask.ColorBufferBit);
+            //GraphicsContext.CurrentContext.SwapBuffers();
+            //GL.Clear(ClearBufferMask.ColorBufferBit);
+            //GraphicsContext.CurrentContext.SwapBuffers();
 
             controls.InitializeGL(this);
             glInit = true;

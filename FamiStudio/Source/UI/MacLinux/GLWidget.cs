@@ -22,6 +22,8 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Threading;
 using System.ComponentModel;
+using Gdk;
+using System.Diagnostics;
 
 namespace Gtk
 {
@@ -106,7 +108,7 @@ namespace Gtk
 
         public override void Dispose()
         {
-            GC.SuppressFinalize(this);
+            System.GC.SuppressFinalize(this);
             Dispose(true);
             base.Dispose();
         }
@@ -204,45 +206,31 @@ namespace Gtk
                 GraphicsMode graphicsMode = new GraphicsMode(colorBufferColorFormat, DepthBPP, StencilBPP, Samples, accumulationColorFormat, buffers, Stereo);
 
                 // IWindowInfo
-                if (Configuration.RunningOnWindows)
-                {
-                    IntPtr windowHandle = gdk_win32_drawable_get_handle(GdkWindow.Handle);
-                    windowInfo = Utilities.CreateWindowsWindowInfo(windowHandle);
-                }
-                else if (Configuration.RunningOnMacOS)
-                {
-                    IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
-                    const bool ownHandle = true;
-                    const bool isControl = true;
-                    windowInfo = Utilities.CreateMacOSCarbonWindowInfo(windowHandle, ownHandle, isControl);
-                }
-                else if (Configuration.RunningOnX11)
-                {
-                    IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
-                    int screen = Screen.Number;
-                    IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
-                    IntPtr rootWindow = gdk_x11_drawable_get_xid(RootWindow.Handle);
+#if FAMISTUDIO_MACOS
+                IntPtr windowHandle = FamiStudio.MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
+                windowInfo = Utilities.CreateMacOSWindowInfo(windowHandle);
+#elif FAMISTUDIO_LINUX
+                IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
+                int screen = Screen.Number;
+                IntPtr windowHandle = gdk_x11_drawable_get_xid(GdkWindow.Handle);
+                IntPtr rootWindow = gdk_x11_drawable_get_xid(RootWindow.Handle);
 
-                    IntPtr visualInfo;
-                    if (graphicsMode.Index.HasValue)
-                    {
-                        XVisualInfo info = new XVisualInfo();
-                        info.VisualID = graphicsMode.Index.Value;
-                        int dummy;
-                        visualInfo = XGetVisualInfo(display, XVisualInfoMask.ID, ref info, out dummy);
-                    }
-                    else
-                    {
-                        visualInfo = GetVisualInfo(display);
-                    }
-
-                    windowInfo = Utilities.CreateX11WindowInfo(display, screen, windowHandle, rootWindow, visualInfo);
-                    XFree(visualInfo);
+                IntPtr visualInfo;
+                if (graphicsMode.Index.HasValue)
+                {
+                    XVisualInfo info = new XVisualInfo();
+                    info.VisualID = graphicsMode.Index.Value;
+                    int dummy;
+                    visualInfo = XGetVisualInfo(display, XVisualInfoMask.ID, ref info, out dummy);
                 }
                 else
                 {
-                    throw new PlatformNotSupportedException();
+                    visualInfo = GetVisualInfo(display);
                 }
+
+                windowInfo = Utilities.CreateX11WindowInfo(display, screen, windowHandle, rootWindow, visualInfo);
+                XFree(visualInfo);
+#endif
 
                 // GraphicsContext
                 graphicsContext = new GraphicsContext(graphicsMode, windowInfo, GlVersionMajor, GlVersionMinor, graphicsContextFlags);
@@ -282,9 +270,23 @@ namespace Gtk
         // Called when this GLWidget needs to render a frame
         public event EventHandler Resized;
 
+        protected override void OnSizeAllocated(Rectangle allocation)
+        {
+            Debug.WriteLine($"WINDOW CONFIG {allocation.Width} {allocation.Height}");
+            base.OnSizeAllocated(allocation);
+        }
+
+        public void ResizeContext()
+        {
+            if (graphicsContext != null)
+                graphicsContext.Update(windowInfo);
+        }
+
+#if TRUE //FAMISTUDIO_LINUX
         // Called on Resize
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
+            Debug.WriteLine($"GL CONFIG {evnt.Width} {evnt.Height}");
             bool result = base.OnConfigureEvent(evnt);
             if (graphicsContext != null)
                 graphicsContext.Update(windowInfo);
@@ -292,7 +294,9 @@ namespace Gtk
                 Resized(this, EventArgs.Empty);
             return result;
         }
+#endif
 
+#if FAMISTUDIO_LINUX
         [SuppressUnmanagedCodeSecurity, DllImport("libgdk-win32-2.0-0.dll")]
         public static extern IntPtr gdk_win32_drawable_get_handle(IntPtr d);
 
@@ -465,5 +469,6 @@ namespace Gtk
 
         [SuppressUnmanagedCodeSecurity, DllImport(linux_libgl_name)]
         static extern IntPtr glXChooseVisual(IntPtr display, int screen, int[] attr);
+#endif
     }
 }
