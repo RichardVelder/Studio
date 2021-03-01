@@ -11,7 +11,7 @@ namespace FamiStudio
         const int ControlPianoRoll = 2;
         const int ControlProjectExplorer = 3;
 
-        private GLGraphics gfx = new GLGraphics();
+        private GLGraphics gfx;
         private GLControl[] controls = new GLControl[4];
 
         private Toolbar toolbar;
@@ -117,6 +117,7 @@ namespace FamiStudio
 
         public void InitializeGL(FamiStudioForm form)
         {
+            gfx = new GLGraphics();
             foreach (var ctrl in controls)
                 ctrl.RenderInitialized(gfx);
         }
