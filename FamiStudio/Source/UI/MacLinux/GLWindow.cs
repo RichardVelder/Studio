@@ -61,6 +61,10 @@ namespace Gtk
         /// <summary>The minor version of OpenGL to use.</summary>
         public int GlVersionMinor { get; set; }
 
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        private delegate void WindowDidResizeDelegate(IntPtr self, IntPtr cmd, IntPtr notification);
+        private readonly WindowDidResizeDelegate WindowDidResizeHandler;
+
         public GraphicsContextFlags GraphicsContextFlags
         {
             get;
@@ -98,6 +102,8 @@ namespace Gtk
             GlVersionMajor = glVersionMajor;
             GlVersionMinor = glVersionMinor;
             GraphicsContextFlags = graphicsContextFlags;
+
+                WindowDidResizeHandler = WindowDidResize;
         }
 
         ~GLWindow()
@@ -192,6 +198,13 @@ namespace Gtk
 #if FAMISTUDIO_MACOS
                 IntPtr windowHandle = FamiStudio.MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
                 windowInfo = Utilities.CreateMacOSWindowInfo(windowHandle);
+
+                var clsName = FamiStudio.MacUtils.GetClassName(windowHandle);
+                var cls = FamiStudio.MacUtils.ClassLookup(clsName);
+
+                FamiStudio.MacUtils.RegisterMethod(cls, WindowDidResizeHandler, "windowDidResize:", "v@:@");
+
+                clsName = "";
 #elif FAMISTUDIO_LINUX
                 IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
                 int screen = Screen.Number;
@@ -250,12 +263,28 @@ namespace Gtk
             return result;
         }
 
+        public void UpdateContext()
+        {
+            if (graphicsContext != null)
+                graphicsContext.Update(windowInfo);
+        }
+
+#if FAMISTUDIO_MACOS
+        private void WindowDidResize(IntPtr self, IntPtr cmd, IntPtr notification)
+        {
+            if (graphicsContext != null)
+                graphicsContext.Update(windowInfo);
+        }
+#endif
+
         // Called on Resize
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
             bool result = base.OnConfigureEvent(evnt);
+#if FAMISTUDIO_LINUX
             if (graphicsContext != null)
                 graphicsContext.Update(windowInfo);
+#endif
             return result;
         }
 

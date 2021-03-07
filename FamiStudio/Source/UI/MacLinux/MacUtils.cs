@@ -69,6 +69,9 @@ namespace FamiStudio
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "class_replaceMethod")]
         public static extern void ClassReplaceMethod(IntPtr classHandle, IntPtr selector, IntPtr method, string types);
 
+        [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "class_addMethod")]
+        private static extern bool ClassAddMethod(IntPtr classHandle, IntPtr selector, IntPtr method, string types);
+
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_lookUpClass")]
         public static extern IntPtr ClassLookup(string name);
 
@@ -142,6 +145,7 @@ namespace FamiStudio
         static IntPtr selRunModal = SelRegisterName("runModal");
         static IntPtr selURL = SelRegisterName("URL");
         static IntPtr selInit = SelRegisterName("init");
+        static IntPtr selClassName = SelRegisterName("className");
         static IntPtr selSetMessageText = SelRegisterName("setMessageText:");
         static IntPtr selSetInformativeText = SelRegisterName("setInformativeText:");
         static IntPtr selSetAlertStyle = SelRegisterName("setAlertStyle:");
@@ -204,6 +208,25 @@ namespace FamiStudio
         public static string FromNSString(IntPtr handle)
         {
             return Marshal.PtrToStringAuto(SendIntPtr(handle, selUTF8String));
+        }
+
+        public static string GetClassName(IntPtr obj)
+        {
+            return FromNSString(SendIntPtr(obj, selClassName));
+        }
+
+        public static void RegisterMethod(IntPtr handle, Delegate d, string selector, string typeString)
+        {
+            // TypeString info:
+            // https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
+
+            var p = Marshal.GetFunctionPointerForDelegate(d);
+            var r = ClassAddMethod(handle, SelRegisterName(selector), p, typeString);
+
+            if (!r)
+            {
+                throw new ArgumentException("Could not register method " + d + " in class " + GetClassName(handle));
+            }
         }
 
         public static IntPtr ToNSURL(string filepath)
