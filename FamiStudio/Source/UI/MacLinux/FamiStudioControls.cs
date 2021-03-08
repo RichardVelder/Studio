@@ -11,6 +11,8 @@ namespace FamiStudio
         const int ControlPianoRoll = 2;
         const int ControlProjectExplorer = 3;
 
+        private int width;
+        private int height;
         private GLGraphics gfx;
         private GLControl[] controls = new GLControl[4];
 
@@ -41,8 +43,11 @@ namespace FamiStudio
                 ctrl.ParentForm = parent;
         }
 
-        public void Resize(int width, int height)
+        public void Resize(int w, int h)
         {
+            width  = w;
+            height = h;
+
             int toolBarHeight = (int)(40 * GLTheme.MainWindowScaling);
             int projectExplorerWidth = (int)(280 * GLTheme.MainWindowScaling);
             int sequencerHeight = (int)(sequencer.ComputeDesiredSizeY() * GLTheme.MainWindowScaling);
@@ -80,7 +85,9 @@ namespace FamiStudio
                 ctrl.Invalidate();
         }
 
-        public bool Redraw(int width, int height)
+        Random rnd = new Random();
+
+        public bool Redraw()
         {
             bool anyNeedsRedraw = false;
             foreach (var control in controls)
@@ -93,8 +100,8 @@ namespace FamiStudio
                 //Debug.WriteLine($"REDRAW! {width} {height}");
 
                 GL.Viewport(0, 0, width, height);
-                //GL.ClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-                GL.Clear(ClearBufferMask.ColorBufferBit);
+                //GL.ClearColor(1.0f, (float)rnd.NextDouble(), 1.0f, 1.0f);
+                //GL.Clear(ClearBufferMask.ColorBufferBit);
 
                 // Tentative fix for a bug when NSF dialog is open that I can no longer repro.
                 if (controls[0].App.Project == null)

@@ -47,8 +47,9 @@ namespace FamiStudio
 
             controls = new FamiStudioControls(this);
 
-            WidthRequest  = 1280;
-            HeightRequest = 720;
+            WidthRequest  = 400;
+            HeightRequest = 400;
+            controls.Resize(GtkToCoord(WidthRequest), GtkToCoord(HeightRequest));
 
             Events |= 
                 Gdk.EventMask.ButtonPressMask   |
@@ -69,16 +70,16 @@ namespace FamiStudio
         }
         
 #if FAMISTUDIO_MACOS
+        static bool exposed = false;
         protected override bool OnExposeEvent(Gdk.EventExpose evnt)
         {
-            IntPtr windowHandle = MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
-            MacUtils.Initialize(windowHandle);
-
-            WidthRequest  = CoordToGtk(512); // MATTT 512
-            HeightRequest = CoordToGtk(512);
-            Resize(512, 512);
-
-            RefreshSequencerLayout();
+            if (!exposed)
+            {
+                IntPtr windowHandle = MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
+                MacUtils.Initialize(windowHandle);
+                RefreshSequencerLayout();
+                exposed = true;
+            }
             return base.OnExposeEvent(evnt);
         }
 #endif
@@ -89,17 +90,11 @@ namespace FamiStudio
             modifiers = System.Windows.Forms.Keys.None;
         }
 
-        protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
+        protected override void Resized(int width, int height)
         {
-            //Debug.WriteLine($"Resize {evnt.Width} {evnt.Height}");
-
-            var result = base.OnConfigureEvent(evnt);
-
-            controls.Resize(GtkToCoord(evnt.Width), GtkToCoord(evnt.Height));
+            controls.Resize(GtkToCoord(width), GtkToCoord(height));
             Invalidate();
-            RenderFrame(true);
-            
-            return result;
+            RenderFrame();
         }
 
         protected System.Windows.Forms.MouseEventArgs ToWinFormArgs(Gdk.EventScroll e, int x, int y, bool horizontal)
@@ -139,7 +134,7 @@ namespace FamiStudio
                 //  t=4 RELEASE
                 //  t=4 DBL CLICK
                 if (args.Event.Button == lastMouseButton &&
-                    (args.Event.Time - lastClickTime) < doubleClickTime &&
+                   (args.Event.Time - lastClickTime) < doubleClickTime &&
                     Math.Abs(lastClickPos.X - scaledX) < 4 &&
                     Math.Abs(lastClickPos.Y - scaledY) < 4)
                 {
@@ -147,7 +142,8 @@ namespace FamiStudio
                     lastClickTime   = 0;
                     lastClickPos    = Point.Empty;
 
-                    ctrl.MouseDoubleClick(GtkUtils.ToWinFormArgs(args.Event, x, y));
+                    if (ctrl != null)
+                        ctrl.MouseDoubleClick(GtkUtils.ToWinFormArgs(args.Event, x, y));
                 }
                 else
                 {
@@ -157,7 +153,9 @@ namespace FamiStudio
 
                     var e = GtkUtils.ToWinFormArgs(args.Event, x, y);
                     lastButtonPress = e.Button;
-                    ctrl.MouseDown(e);
+
+                    if (ctrl != null)
+                        ctrl.MouseDown(e);
                 }
             }
         }
@@ -389,14 +387,11 @@ namespace FamiStudio
             return pos / GLTheme.MainWindowScaling;
         }
 
-        protected override void RenderFrame(bool resized = false)
+        protected override void RenderFrame()
         {
-            if (glInit && controls.Redraw(GtkToCoord(Allocation.Width), GtkToCoord(Allocation.Height)))
+            if (glInit && controls.Redraw())
             {
-#if FAMISTUDIO_MACOS
-                //if (!resized)
-#endif
-                    GraphicsContext.CurrentContext.SwapBuffers();
+                GraphicsContext.CurrentContext.SwapBuffers();
             }
         }
 

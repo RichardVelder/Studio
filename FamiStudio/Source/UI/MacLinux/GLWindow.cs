@@ -103,7 +103,7 @@ namespace Gtk
             GlVersionMinor = glVersionMinor;
             GraphicsContextFlags = graphicsContextFlags;
 
-                WindowDidResizeHandler = WindowDidResize;
+            WindowDidResizeHandler = WindowDidResize;
         }
 
         ~GLWindow()
@@ -155,7 +155,11 @@ namespace Gtk
         {
         }
 
-        protected virtual void RenderFrame(bool resized = false)
+        protected virtual void Resized(int width, int height)
+        {
+        }
+
+        protected virtual void RenderFrame()
         {
         }
 
@@ -199,12 +203,23 @@ namespace Gtk
                 IntPtr windowHandle = FamiStudio.MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
                 windowInfo = Utilities.CreateMacOSWindowInfo(windowHandle);
 
+                //var delegateClass = FamiStudio.MacUtils.AllocateClass(FamiStudio.MacUtils.GetClass("NSWindowDelegate"), "TestDelegate", 0);
+#if TRUE
+                var delegateClass = FamiStudio.MacUtils.AllocateClass(FamiStudio.MacUtils.GetClass("NSObject"), "TestDelegate", 0);
+                FamiStudio.MacUtils.RegisterMethod(delegateClass, WindowDidResizeHandler, "windowDidResize:", "v@:@");
+                FamiStudio.MacUtils.RegisterClass(delegateClass);
+
+                var instancePtr = FamiStudio.MacUtils.SendIntPtr(delegateClass, FamiStudio.MacUtils.SelRegisterName("alloc"));
+
+                FamiStudio.MacUtils.AddNotificationCenterObserver(instancePtr, "windowDidResize:", "NSWindowDidResizeNotification", windowHandle);
+                //FamiStudio.MacUtils.SendVoid(windowHandle, FamiStudio.MacUtils.SelRegisterName("delegate:"), delegateClass);
+#else
                 var clsName = FamiStudio.MacUtils.GetClassName(windowHandle);
                 var cls = FamiStudio.MacUtils.ClassLookup(clsName);
 
-                FamiStudio.MacUtils.RegisterMethod(cls, WindowDidResizeHandler, "windowDidResize:", "v@:@");
-
-                clsName = "";
+                FamiStudio.MacUtils.ClassReplaceMethod(cls, FamiStudio.MacUtils.SelRegisterName("windowDidResize:"), Marshal.GetFunctionPointerForDelegate(WindowDidResizeHandler), "v@:@");
+#endif
+                //clsName = "";
 #elif FAMISTUDIO_LINUX
                 IntPtr display = gdk_x11_display_get_xdisplay(Display.Handle);
                 int screen = Screen.Number;
@@ -258,15 +273,7 @@ namespace Gtk
 
             bool result = base.OnExposeEvent(evnt);
             RenderFrame();
-            evnt.Window.Display.Sync(); // Add Sync call to fix resize rendering problem (Jay L. T. Cornwall) - How does this affect VSync?
-            graphicsContext.SwapBuffers();
             return result;
-        }
-
-        public void UpdateContext()
-        {
-            if (graphicsContext != null)
-                graphicsContext.Update(windowInfo);
         }
 
 #if FAMISTUDIO_MACOS
@@ -274,21 +281,24 @@ namespace Gtk
         {
             if (graphicsContext != null)
                 graphicsContext.Update(windowInfo);
+
+            IntPtr nsWin = FamiStudio.MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
+            var size = FamiStudio.MacUtils.GetWindowSize(nsWin);
+            Resized((int)size.X, (int)size.Y);
         }
 #endif
 
+#if FAMISTUDIO_LINUX
         // Called on Resize
         protected override bool OnConfigureEvent(Gdk.EventConfigure evnt)
         {
             bool result = base.OnConfigureEvent(evnt);
-#if FAMISTUDIO_LINUX
             if (graphicsContext != null)
                 graphicsContext.Update(windowInfo);
-#endif
+            Resized(evnt.Width, evnt.Height);
             return result;
         }
 
-#if FAMISTUDIO_LINUX
         [SuppressUnmanagedCodeSecurity, DllImport("libgdk-win32-2.0-0.dll")]
         public static extern IntPtr gdk_win32_drawable_get_handle(IntPtr d);
 
