@@ -13,7 +13,7 @@ namespace FamiStudio
         public extern static IntPtr SelRegisterName(string name);
 
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_getClass")]
-        public extern static IntPtr ObjCGetClass(string name);
+        public extern static IntPtr GetClass(string name);
 
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
         public extern static void SendVoid(IntPtr receiver, IntPtr selector);
@@ -23,6 +23,9 @@ namespace FamiStudio
 
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
         public extern static void SendVoid(IntPtr receiver, IntPtr selector, IntPtr intPtr1, IntPtr intPtr2);
+
+        [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+        public extern static void SendVoid(IntPtr receiver, IntPtr selector, IntPtr intPtr1, IntPtr intPtr2, IntPtr intPtr3, IntPtr intPtr4);
 
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
         public extern static void SendVoid(IntPtr receiver, IntPtr selector, NSRect rect1, IntPtr intPtr1);
@@ -69,8 +72,17 @@ namespace FamiStudio
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "class_replaceMethod")]
         public static extern void ClassReplaceMethod(IntPtr classHandle, IntPtr selector, IntPtr method, string types);
 
+        [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "class_addMethod")]
+        private static extern bool ClassAddMethod(IntPtr classHandle, IntPtr selector, IntPtr method, string types);
+
         [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_lookUpClass")]
         public static extern IntPtr ClassLookup(string name);
+
+        [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_allocateClassPair")]     
+        public static extern IntPtr AllocateClass(IntPtr parentClass, string name, int extraBytes);
+
+        [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_registerClassPair")]
+        public static extern void RegisterClass(IntPtr classToRegister);
 
         [DllImport("/System/Library/Frameworks/AppKit.framework/AppKit")]
         public static extern void NSBeep();
@@ -92,9 +104,9 @@ namespace FamiStudio
         const int NSAlertFirstButtonReturn  = 1000;
         const int NSAlertSecondButtonReturn = 1001;
 
-        static IntPtr clsNSURL = ObjCGetClass("NSURL");
-        static IntPtr clsNSString = ObjCGetClass("NSString");
-        static IntPtr clsNSArray = ObjCGetClass("NSArray");
+        static IntPtr clsNSURL = GetClass("NSURL");
+        static IntPtr clsNSString = GetClass("NSString");
+        static IntPtr clsNSArray = GetClass("NSArray");
         static IntPtr clsNSEvent;
         static IntPtr clsNSOpenPanel;
         static IntPtr clsNSSavePanel;
@@ -103,6 +115,7 @@ namespace FamiStudio
         static IntPtr clsNSImage;
         static IntPtr clsNSPasteboard;
         static IntPtr clsNSData;
+        static IntPtr clsNSNotificationCenter;
 
         static IntPtr selAlloc = SelRegisterName("alloc");
         static IntPtr selLength = SelRegisterName("length");
@@ -142,6 +155,7 @@ namespace FamiStudio
         static IntPtr selRunModal = SelRegisterName("runModal");
         static IntPtr selURL = SelRegisterName("URL");
         static IntPtr selInit = SelRegisterName("init");
+        static IntPtr selClassName = SelRegisterName("className");
         static IntPtr selSetMessageText = SelRegisterName("setMessageText:");
         static IntPtr selSetInformativeText = SelRegisterName("setInformativeText:");
         static IntPtr selSetAlertStyle = SelRegisterName("setAlertStyle:");
@@ -149,6 +163,8 @@ namespace FamiStudio
         static IntPtr selInvalidateCursorRectsForView = SelRegisterName("invalidateCursorRectsForView:");
         static IntPtr selBounds = SelRegisterName("bounds");
         static IntPtr selRelease = SelRegisterName("release");
+        static IntPtr selDefaultCenter = SelRegisterName("defaultCenter");
+        static IntPtr selAddObserver = SelRegisterName("addObserver:selector:name:object:");
         static IntPtr selAddCursorRectCursor = SelRegisterName("addCursorRect:cursor:");
 
         static IntPtr generalPasteboard;
@@ -165,14 +181,15 @@ namespace FamiStudio
             mainNsWindow = nsWin;
             appKit = LoadLibrary("/System/Library/Frameworks/AppKit.framework/AppKit");
 
-            clsNSEvent = ObjCGetClass("NSEvent");
-            clsNSOpenPanel = ObjCGetClass("NSOpenPanel");
-            clsNSSavePanel = ObjCGetClass("NSSavePanel");
-            clsNSAlert = ObjCGetClass("NSAlert");
-            clsNSCursor = ObjCGetClass("NSCursor");
-            clsNSImage = ObjCGetClass("NSImage");
-            clsNSPasteboard = ObjCGetClass("NSPasteboard");
-            clsNSData = ObjCGetClass("NSData");
+            clsNSEvent = GetClass("NSEvent");
+            clsNSOpenPanel = GetClass("NSOpenPanel");
+            clsNSSavePanel = GetClass("NSSavePanel");
+            clsNSAlert = GetClass("NSAlert");
+            clsNSCursor = GetClass("NSCursor");
+            clsNSImage = GetClass("NSImage");
+            clsNSPasteboard = GetClass("NSPasteboard");
+            clsNSData = GetClass("NSData");
+            clsNSNotificationCenter = GetClass("NSNotificationCenter");
 
             dialogScaling = (float)SendFloat(nsWin, selBackingScaleFactor);
 
@@ -183,6 +200,12 @@ namespace FamiStudio
 
             generalPasteboard = SendIntPtr(clsNSPasteboard, selGeneralPasteboard);
             famiStudioPasteboard = SendIntPtr(clsNSPasteboard, selPasteboardWithName, ToNSString("FamiStudio"));
+        }
+
+        public static void AddNotificationCenterObserver(IntPtr observer, string selector, string notificationName, IntPtr obj)
+        {
+            var notificationCenter = SendIntPtr(clsNSNotificationCenter, selDefaultCenter);
+            SendVoid(notificationCenter, selAddObserver, observer, SelRegisterName(selector), ToNSString(notificationName), obj);
         }
 
         public static IntPtr ToNSString(string str)
@@ -204,6 +227,25 @@ namespace FamiStudio
         public static string FromNSString(IntPtr handle)
         {
             return Marshal.PtrToStringAuto(SendIntPtr(handle, selUTF8String));
+        }
+
+        public static string GetClassName(IntPtr obj)
+        {
+            return FromNSString(SendIntPtr(obj, selClassName));
+        }
+
+        public static void RegisterMethod(IntPtr handle, Delegate d, string selector, string typeString)
+        {
+            // TypeString info:
+            // https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
+
+            var p = Marshal.GetFunctionPointerForDelegate(d);
+            var r = ClassAddMethod(handle, SelRegisterName(selector), p, typeString);
+
+            if (!r)
+            {
+                throw new ArgumentException("Could not register method " + d + " in class " + GetClassName(handle));
+            }
         }
 
         public static IntPtr ToNSURL(string filepath)
@@ -442,6 +484,14 @@ namespace FamiStudio
             if ((macButtons & 2) != 0) buttons |= System.Windows.Forms.MouseButtons.Right;
             if ((macButtons & 4) != 0) buttons |= System.Windows.Forms.MouseButtons.Middle;
             return buttons;
+        }
+
+        public static System.Drawing.PointF GetWindowSize(IntPtr nsWin)
+        {
+            var nsView = SendIntPtr(nsWin, selContentView);
+            var viewRect = SendRect(nsView, selFrame);
+
+            return new System.Drawing.PointF(viewRect.Width, viewRect.Height);
         }
 
         public static System.Drawing.Point GetWindowMousePosition(IntPtr nsWin)

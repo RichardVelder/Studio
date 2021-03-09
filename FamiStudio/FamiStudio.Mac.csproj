@@ -147,7 +147,6 @@
     <Compile Include="Source\Utils\Utils.cs" />
     <Compile Include="Source\UI\Common\ExportDialog.cs" />
     <Compile Include="Source\UI\Common\FamiStudio.cs" />
-    <Compile Include="Source\UI\MacLinux\FamiStudioFormOpenTk.cs" />
     <Compile Include="Source\UI\Common\ProjectExplorer.cs" />
     <Compile Include="Source\UI\Common\PianoRoll.cs" />
     <Compile Include="Source\Utils\Program.cs" />
@@ -268,7 +267,10 @@
     </Content>
     <EmbeddedResource Include="Resources\EyedropCursor.png" />
     <EmbeddedResource Include="Resources\EyedropCursor%402x.png" />
-    <Compile Include="Source\UI\MacLinux\MacCursors.cs" />
+    <Compile Include="Source\UI\MacLinux\FamiStudioFormGtk.cs" />
+    <Compile Include="Source\UI\MacLinux\LinuxCursors.cs" />
+    <EmbeddedResource Include="Resources\FamiStudio_64.png" />
+    <Compile Include="Source\UI\MacLinux\GLWindow.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

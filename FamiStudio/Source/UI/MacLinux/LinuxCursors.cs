@@ -23,14 +23,35 @@ namespace FamiStudio
             return new Gdk.Cursor(Gdk.Display.Default, pixbuf, x, y);
         }
 
+#if FAMISTUDIO_MACOS
+        private static unsafe Gdk.Cursor CreateMacOSNamedCursor(string name)
+        {
+            var nsCursor = MacUtils.GetCursorByName(name);
+            var gdkCursor = new Gdk.Cursor(Gdk.CursorType.Cross);
+
+            // HACK : Patch the Gdk internal struct with our NSCursor.
+            IntPtr* p = (IntPtr*)gdkCursor.Handle.ToPointer();
+            p[1] = nsCursor;
+
+            return gdkCursor;
+        }
+#endif
+
         public static void Initialize()
         {
+#if FAMISTUDIO_LINUX
             Default    = Gdk.Cursor.NewFromName(Gdk.Display.Default, "default");
-            SizeWE     = Gdk.Cursor.NewFromName(Gdk.Display.Default, "col-resize");
-            SizeNS     = Gdk.Cursor.NewFromName(Gdk.Display.Default, "row-resize");
+#endif
+            SizeWE = new Gdk.Cursor(Gdk.CursorType.SbHDoubleArrow);
+            SizeNS     = new Gdk.Cursor(Gdk.CursorType.SbVDoubleArrow);
+#if FAMISTUDIO_LINUX
             DragCursor = Gdk.Cursor.NewFromName(Gdk.Display.Default, "grab");
             CopyCursor = Gdk.Cursor.NewFromName(Gdk.Display.Default, "copy");
-            Eyedrop    = CreateCursorFromResource("EyedropCursor", 7, 24);
+#else
+            DragCursor = CreateMacOSNamedCursor("closedHandCursor");
+            CopyCursor = CreateMacOSNamedCursor("dragCopyCursor");
+#endif
+            Eyedrop = CreateCursorFromResource("EyedropCursor", 7, 24);
         }
     }
 }
