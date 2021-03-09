@@ -25,6 +25,7 @@ namespace FamiStudio
         public ProjectExplorer ProjectExplorer => controls.ProjectExplorer;
         public static FamiStudioForm Instance => instance;
 
+        bool exposed = false;
         bool glInit = false;
 
         private int  doubleClickTime = 250;
@@ -69,20 +70,20 @@ namespace FamiStudio
             doubleClickTime = Gtk.Settings.GetForScreen(Gdk.Screen.Default).DoubleClickTime;
         }
         
-#if FAMISTUDIO_MACOS
-        static bool exposed = false;
         protected override bool OnExposeEvent(Gdk.EventExpose evnt)
         {
             if (!exposed)
             {
+#if FAMISTUDIO_MACOS
                 IntPtr windowHandle = MacUtils.NSWindowFromGdkWindow(GdkWindow.Handle);
                 MacUtils.Initialize(windowHandle);
+#endif
+                Cursors.Initialize();
                 RefreshSequencerLayout();
                 exposed = true;
             }
             return base.OnExposeEvent(evnt);
         }
-#endif
 
         void Handle_FocusOutEvent(object o, FocusOutEventArgs args)
         {
